@@ -58,7 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav className="space-y-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
+              (item.href === '/dashboard' && pathname.startsWith('/dashboard/bots'));
             return (
               <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${isActive ? 'bg-amber-500/10 text-amber-300' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <span>{item.icon}</span>

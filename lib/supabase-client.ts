@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 function hasRealSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -37,7 +38,7 @@ function clearStoredDemoSession() {
   }
 }
 
-function createDemoQuery(table: string) {
+function createDemoQuery(table: string): any {
   const fallbackRows = {
     bots: [
       {
@@ -56,37 +57,28 @@ function createDemoQuery(table: string) {
 
   const rows = fallbackRows[table] ?? [];
 
-  return {
-    select() {
-      return {
-        order: async () => ({ data: rows, error: null }),
-        eq: () => ({
-          single: async () => ({ data: rows[0] ?? null, error: null }),
-        }),
-        single: async () => ({ data: rows[0] ?? null, error: null }),
-      };
-    },
-    insert(values: any) {
+  const queryObj: any = {
+    _data: null,
+    select: () => queryObj,
+    insert: (values: any) => {
       const insertion = Array.isArray(values) ? values : [values];
-      return {
-        select() {
-          return {
-            single: async () => ({ data: { id: 'demo-bot', ...insertion[0] }, error: null }),
-          };
-        },
-        single: async () => ({ data: { id: 'demo-bot', ...insertion[0] }, error: null }),
-      };
+      queryObj._data = { id: 'demo-bot', ...insertion[0] };
+      return queryObj;
     },
-    update() {
-      return Promise.resolve({ data: rows, error: null });
-    },
-    delete() {
-      return Promise.resolve({ data: null, error: null });
-    },
+    update: () => queryObj,
+    delete: () => queryObj,
+    eq: () => queryObj,
+    or: () => queryObj,
+    in: () => queryObj,
+    order: () => queryObj,
+    single: async () => ({ data: queryObj._data ?? rows[0] ?? null, error: null }),
+    then: (resolve: any) => resolve({ data: queryObj._data ?? rows, count: rows.length, error: null }),
   };
+
+  return queryObj;
 }
 
-function createDemoClient() {
+function createDemoClient(): any {
   return {
     auth: {
       getSession: async () => {
@@ -96,7 +88,7 @@ function createDemoClient() {
           error: null,
         };
       },
-      signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
+      signInWithPassword: async ({ email }: { email: string; password: string }) => {
         const session = {
           user: {
             id: 'demo-user',
@@ -133,13 +125,14 @@ function createDemoClient() {
   };
 }
 
-export function createClient() {
+export function createClient(): SupabaseClient<any, "public", any> {
   if (hasRealSupabaseConfig()) {
     return createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    ) as any;
   }
 
-  return createDemoClient();
+  return createDemoClient() as any;
 }
+
