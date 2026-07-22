@@ -57,7 +57,10 @@ export async function POST(request: Request) {
   const message = typeof body?.message === 'string' ? body.message : '';
   const botId = typeof body?.bot_id === 'string' ? body.bot_id : '';
   const conversationId =
-    typeof body?.conversation_id === 'string' ? body.conversation_id : undefined;
+    typeof body?.conversation_id === 'string' ? body.conversation_id : undefined;const visitorId =
+  typeof body?.visitor_id === 'string'
+    ? body.visitor_id
+    : 'anonymous';
 
   if (!message.trim() || !botId) {
     return NextResponse.json(
@@ -85,7 +88,7 @@ export async function POST(request: Request) {
   if (!convoId) {
     const { data: newConvo } = await supabaseAdmin
       .from('conversations')
-      .insert({ bot_id: botId, visitor_id: 'anonymous' })
+      .insert({ bot_id: botId, visitor_id: visitorId })
       .select('id')
       .single();
     convoId = newConvo?.id;
@@ -164,9 +167,16 @@ ${context}`;
       origin,
     });
   }
+const isFallback = answer === FALLBACK_ANSWER;
 
-  return NextResponse.json(
-    { answer, conversation_id: convoId },
-    { headers: corsHeaders(origin) }
-  );
+return NextResponse.json(
+  {
+    answer,
+    conversation_id: convoId,
+    isFallback,
+  },
+  {
+    headers: corsHeaders(origin),
+  }
+);
 }
