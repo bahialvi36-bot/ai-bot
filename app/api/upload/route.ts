@@ -22,7 +22,7 @@ function splitIntoChunks(text: string, wordsPerChunk = 500): string[] {
   if (words.length === 0 || words[0] === '') {
     return [];
   }
-  
+
   const chunks: string[] = [];
   for (let i = 0; i < words.length; i += wordsPerChunk) {
     chunks.push(words.slice(i, i + wordsPerChunk).join(' '));
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const origin = request.headers.get('origin') || '*';
   try {
     // Check environment variables first
-   if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY environment variable is not set.' },
         { status: 500, headers: corsHeaders(origin) }
@@ -140,10 +140,35 @@ export async function POST(request: Request) {
       );
     }
 
-   // Generate embeddings one chunk at a time using Gemini
+    // Generate embeddings one chunk at a time using Gemini
     const insertions = [];
     for (const chunk of chunks) {
-      const embedding = await embedText(chunk);
+      let embedding: number[] | null = null;
+      try {
+        embedding = await embedText(chunk);
+      } catch (embedErr: any) {
+        // DEBUG: log the exact embedding failure reason
+        console.error('UPLOAD DEBUG: embedText threw an error:', embedErr?.message || embedErr);
+        return NextResponse.json(
+          { error: `Embedding generation failed: ${embedErr?.message || 'unknown error'}` },
+          { status: 500, headers: corsHeaders(origin) }
+        );
+      }
+
+      // DEBUG: log what embedText actually returned
+      console.log(
+        'UPLOAD DEBUG: embedding type =',
+        Array.isArray(embedding) ? `array[${embedding.length}]` : typeof embedding
+      );
+
+      if (!Array.isArray(embedding) || embedding.length === 0) {
+        console.error('UPLOAD DEBUG: embedding was empty/invalid for chunk:', chunk.slice(0, 50));
+        return NextResponse.json(
+          { error: 'Embedding generation returned an empty result. Check GEMINI_API_KEY and model name.' },
+          { status: 500, headers: corsHeaders(origin) }
+        );
+      }
+
       insertions.push({
         bot_id,
         content: chunk,
