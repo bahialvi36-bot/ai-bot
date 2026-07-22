@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { embedText, generateChatReply } from '../../../lib/gemini';
 
@@ -57,10 +55,16 @@ export async function POST(request: Request) {
   const message = typeof body?.message === 'string' ? body.message : '';
   const botId = typeof body?.bot_id === 'string' ? body.bot_id : '';
   const conversationId =
-    typeof body?.conversation_id === 'string' ? body.conversation_id : undefined;const visitorId =
-  typeof body?.visitor_id === 'string'
-    ? body.visitor_id
-    : 'anonymous';
+    typeof body?.conversation_id === 'string' ? body.conversation_id : undefined;
+  const visitorId =
+    typeof body?.visitor_id === 'string'
+      ? body.visitor_id
+      : 'anonymous';
+
+  // DEBUG: log exactly what we received and whether env vars are set
+  console.log('CHAT DEBUG: incoming botId =', JSON.stringify(botId));
+  console.log('CHAT DEBUG: SUPABASE_URL set =', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('CHAT DEBUG: SUPABASE_SERVICE_KEY set =', !!process.env.SUPABASE_SERVICE_KEY);
 
   if (!message.trim() || !botId) {
     return NextResponse.json(
@@ -75,6 +79,10 @@ export async function POST(request: Request) {
     .select('id, personality_prompt, language, owner_email, user_id')
     .eq('id', botId)
     .single();
+
+  // DEBUG: log the exact Supabase response
+  console.log('CHAT DEBUG: bot =', JSON.stringify(bot));
+  console.log('CHAT DEBUG: botError =', JSON.stringify(botError));
 
   if (botError || !bot) {
     return NextResponse.json(
@@ -167,16 +175,17 @@ ${context}`;
       origin,
     });
   }
-const isFallback = answer === FALLBACK_ANSWER;
 
-return NextResponse.json(
-  {
-    answer,
-    conversation_id: convoId,
-    isFallback,
-  },
-  {
-    headers: corsHeaders(origin),
-  }
-);
+  const isFallback = answer === FALLBACK_ANSWER;
+
+  return NextResponse.json(
+    {
+      answer,
+      conversation_id: convoId,
+      isFallback,
+    },
+    {
+      headers: corsHeaders(origin),
+    }
+  );
 }
