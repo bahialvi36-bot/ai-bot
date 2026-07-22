@@ -28,6 +28,16 @@ export default function BotDetailsPage() {
   const [chunks, setChunks] = useState<any[]>([]);
   const [trainingLoading, setTrainingLoading] = useState(false);
 
+  const refetchChunks = async () => {
+    const supabase = createClient();
+    const { data: chunksData } = await supabase
+      .from('document_chunks')
+      .select('*')
+      .eq('bot_id', botId)
+      .order('created_at', { ascending: false });
+    setChunks(chunksData || []);
+  };
+
   useEffect(() => {
     if (!botId) return;
 
@@ -124,26 +134,44 @@ export default function BotDetailsPage() {
     if (!knowledgeContent.trim()) return;
 
     setTrainingLoading(true);
-    const supabase = createClient();
+    setError('');
+    setSuccess('');
 
-    const { data: newChunk, error: insertError } = await supabase
-      .from('document_chunks')
-      .insert({
-        bot_id: botId,
-        content: knowledgeContent.trim(),
-      })
-      .select()
-      .single();
+    try {
+      // IMPORTANT: call the /api/upload route so the text gets split into
+      // chunks AND each chunk gets a real vector embedding generated via
+      // Gemini before being saved. Inserting directly into Supabase from
+      // the client (the old behaviour) skipped embedding generation
+      // entirely, leaving every chunk with a NULL embedding that could
+      // never be matched during chat.
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_id: botId,
+          text: knowledgeContent.trim(),
+        }),
+      });
 
-    setTrainingLoading(false);
+      const data = await res.json();
 
-    if (insertError) {
-      setError(insertError.message || 'Failed to add knowledge base text.');
-      return;
+      if (!res.ok) {
+        setError(data?.error || 'Failed to add knowledge base text.');
+        setTrainingLoading(false);
+        return;
+      }
+
+      // Re-fetch the chunks list from Supabase so the UI shows the
+      // newly created chunk(s) with their embeddings included.
+      await refetchChunks();
+      setKnowledgeContent('');
+      setSuccess(data?.message || 'Knowledge added successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to add knowledge base text.');
+    } finally {
+      setTrainingLoading(false);
     }
-
-    setChunks([newChunk, ...chunks]);
-    setKnowledgeContent('');
   };
 
   const handleDeleteChunk = async (chunkId: string) => {
